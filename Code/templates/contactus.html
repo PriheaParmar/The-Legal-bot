@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Contact Us | Glass Morphism</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='contactus.css') }}">
+  
+  <!-------------------------------------------------------------------Google Fonts------------------------------------------------------------------------------>
+  <link href='https://fonts.googleapis.com/css?family=Alata' rel='stylesheet'>
+  <link href='https://fonts.googleapis.com/css?family=Londrina Sketch' rel='stylesheet'>
+  <link href='https://fonts.googleapis.com/css?family=Poppins' rel='stylesheet'>
+  <link href='https://fonts.googleapis.com/css?family=Nunito' rel='stylesheet'>
+
+</head>
+
+<body>
+
+  <div class="header">
+    <button class="button" onclick="window.location.href='\homepage';"> <!--Back Button-->
+        <div class="button-box">
+          <span class="button-elem">
+            <svg viewBox="0 0 46 40" xmlns="http://www.w3.org/2000/svg">
+              <path
+                d="M46 20.038c0-.7-.3-1.5-.8-2.1l-16-17c-1.1-1-3.2-1.4-4.4-.3-1.2 1.1-1.2 3.3 0 4.4l11.3 11.9H3c-1.7 0-3 1.3-3 3s1.3 3 3 3h33.1l-11.3 11.9c-1 1-1.2 3.3 0 4.4 1.2 1.1 3.3.8 4.4-.3l16-17c.5-.5.8-1.1.8-1.9z"
+              ></path>
+            </svg>
+          </span>
+          <span class="button-elem">
+            <svg viewBox="0 0 46 40">
+              <path
+                d="M46 20.038c0-.7-.3-1.5-.8-2.1l-16-17c-1.1-1-3.2-1.4-4.4-.3-1.2 1.1-1.2 3.3 0 4.4l11.3 11.9H3c-1.7 0-3 1.3-3 3s1.3 3 3 3h33.1l-11.3 11.9c-1 1-1.2 3.3 0 4.4 1.2 1.1 3.3.8 4.4-.3l16-17c.5-.5.8-1.1.8-1.9z"
+              ></path>
+            </svg>
+          </span>
+        </div>
+      </button>
+</div>  
+
+  <div class="background-shapes">
+    <div class="shape s1"></div>
+    <div class="shape s2"></div>
+    <div class="shape s3"></div>
+  </div>
+
+  <div class="container">
+    <h1>Get in touch</h1>
+    <form id="contactForm">
+      <div class="input-group">
+        <input type="text" id="name" required>
+        <label for="name">Name</label>
+      </div>
+
+      <div class="input-group">
+        <input type="email" id="email" required>
+        <label for="email">Email</label>
+      </div>
+
+      <div class="input-group">
+        <input type="text" id="subject" required>
+        <label for="subject">Subject</label>
+      </div>
+
+      <div class="input-group">
+        <textarea id="message" required></textarea>
+        <label for="message">Message</label>
+      </div>
+
+      <button type="submit">
+        <pre class="box">                            Send Message                           </pre></button>
+    </form>
+
+    <div class="success-message" id="successMessage">
+      Your message has been sent successfully!
+    </div>
+  </div>
+
+  <script>
+   document.getElementById('contactForm').addEventListener('submit', function (e) {
+  e.preventDefault();
+
+  // Show a loading state or disable the button
+  const submitButton = this.querySelector('button[type="submit"]');
+  const originalButtonText = submitButton.textContent;
+  submitButton.textContent = 'Sending...';
+  submitButton.disabled = true;
+
+  // Collect form data
+  const formData = {
+    name: document.getElementById('name').value,
+    email: document.getElementById('email').value,
+    subject: document.getElementById('subject').value,
+    message: document.getElementById('message').value
+  };
+
+  // Send data to server
+  fetch('/submit_contact', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(formData)
+  })
+    .then(response => {
+      if (!response.ok) {
+        throw new Error(`Server responded with status: ${response.status}`);
+      }
+      return response.json();
+    })
+    .then(data => {
+      console.log('Success:', data);
+      // Show success message
+      document.getElementById('successMessage').style.display = 'block';
+      // Reset form
+      this.reset();
+    })
+    .catch(error => {
+      console.error('Error:', error);
+      alert('There was an error submitting your inquiry. Please try again.');
+    })
+    .finally(() => {
+      // Restore button state
+      submitButton.textContent = originalButtonText;
+      submitButton.disabled = false;
+    });
+});
+  </script>
+</body>
+
+</html>
