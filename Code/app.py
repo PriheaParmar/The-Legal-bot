@@ -21,7 +21,6 @@ import google.generativeai as genai
 app = Flask(__name__)
 CORS(app)
 
-# Use environment variables for sensitive data
 app.config['MONGO_URI'] = os.getenv('MONGO_URI', 'mongodb://localhost:27017/chatbot')
 app.config['SECRET_KEY'] = os.getenv('SECRET_KEY', 'development_key_only')  # Change in production
 mongo = PyMongo(app)
