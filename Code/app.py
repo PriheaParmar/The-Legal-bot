@@ -1,6 +1,8 @@
+from dotenv import load_dotenv
 from flask import Flask, render_template, request, redirect, url_for, session, jsonify
 from flask_pymongo import PyMongo
 from bson.objectid import ObjectId
+from datetime import datetime, timedelta, UTC
 from werkzeug.security import generate_password_hash, check_password_hash
 from datetime import datetime
 from collections import defaultdict
@@ -9,20 +11,20 @@ import google.generativeai as genai
 from flask_cors import CORS
 import logging
 import os
-from datetime import timedelta
-import time
 from functools import wraps
 from livereload import Server
 import google.generativeai as genai
 
 
+load_dotenv()
+print("GOOGLE_API_KEY is:", os.getenv('GOOGLE_API_KEY'))
 
 # Initialize Flask app
 app = Flask(__name__)
 CORS(app)
 
-app.config['MONGO_URI'] = os.getenv('MONGO_URI', 'mongodb://localhost:27017/chatbot')
-app.config['SECRET_KEY'] = os.getenv('SECRET_KEY', 'development_key_only')  # Change in production
+app.config['MONGO_URI'] = os.getenv('MONGO_URI', 'mongodb+srv://priheaparmar:prihea12@prihea.5gxaufz.mongodb.net/chatbot?retryWrites=true&w=majority&appName=Prihea')
+app.config['SECRET_KEY'] = os.getenv('SECRET_KEY', '7899bb88ad902fee5ade5caed072290794b51cb42ee35b965a597023b82f5260')  # Change in production
 mongo = PyMongo(app)
 
 # Configure logging
@@ -30,7 +32,8 @@ logging.basicConfig(level=logging.INFO)
 
 # Configure Google Generative AI with environment variable
 
-genai.configure(api_key="AIzaSyAtjwkM5oywH7uHPf08k31D1bZWMvt4vFo")
+# Instead of hardcoded API key
+genai.configure(api_key=os.getenv('GOOGLE_API_KEY'))
 
 # Model configuration
 generation_config = {
@@ -125,7 +128,7 @@ def signup():
             'username': username, 
             'password': hashed_password,
             'status': 'active',
-            'created_at': datetime.utcnow()
+            'created_at': datetime.now(UTC)
         })
         return redirect(url_for('login'))
     return render_template('signup.html')
@@ -153,7 +156,7 @@ def login():
                 {'username': username},
                 {'$set': {
                     'last_ip': request.remote_addr,
-                    'last_login': datetime.utcnow(),
+                    'last_login': datetime.now(UTC),
                     'status': user.get('status', 'active')
                 }}
             )
@@ -161,7 +164,7 @@ def login():
             # Track active session
             mongo.db.sessions.update_one(
                 {'username': username},
-                {'$set': {'last_active': datetime.utcnow()}},
+                {'$set': {'last_active': datetime.now(UTC)}},
                 upsert=True
             )
             
@@ -179,7 +182,7 @@ def login():
 def new_chat():
     conv = {
         'username': session['username'],
-        'created_at': datetime.utcnow()
+        'created_at': datetime.now(UTC)
     }
     result = mongo.db.conversations.insert_one(conv)
     session['current_conversation'] = str(result.inserted_id)
@@ -206,7 +209,7 @@ def chat():
     # Update last active timestamp for this user
     mongo.db.sessions.update_one(
         {'username': session['username']},
-        {'$set': {'last_active': datetime.utcnow()}},
+        {'$set': {'last_active': datetime.now(UTC)}},
         upsert=True
     )
     
@@ -215,7 +218,7 @@ def chat():
             data = request.get_json()
             user_message = data.get('message', '')
             conversation_id = session.get('current_conversation')
-            timestamp = datetime.utcnow()
+            timestamp = datetime.now(UTC)
 
             if not conversation_id:
                 result = mongo.db.conversations.insert_one({
@@ -339,7 +342,7 @@ def submit_contact():
             'email': email,
             'subject': subject,
             'message': message,
-            'timestamp': datetime.utcnow(),
+            'timestamp': datetime.now(UTC),
             'status': 'unread'
         }
         
@@ -388,7 +391,7 @@ def get_user_stats():
     total_users = mongo.db.users.count_documents({'username': {'$ne': 'admin'}})
     
     # Get active users (users with active session in last 30 minutes)
-    thirty_minutes_ago = datetime.utcnow() - timedelta(minutes=30)
+    thirty_minutes_ago = datetime.now(UTC) - timedelta(minutes=30)
     active_sessions = mongo.db.sessions.count_documents({'last_active': {'$gte': thirty_minutes_ago}})
     
     # Count banned users
@@ -413,7 +416,7 @@ def get_users_by_type(user_type):
         ))
     elif user_type == 'active':
         # Active users based on session
-        thirty_minutes_ago = datetime.utcnow() - timedelta(minutes=30)
+        thirty_minutes_ago = datetime.now(UTC) - timedelta(minutes=30)
         active_usernames = [s['username'] for s in mongo.db.sessions.find(
             {'last_active': {'$gte': thirty_minutes_ago}}
         )]
@@ -538,25 +541,34 @@ def check_if_banned():
 # Add this function to initialize database with required fields
 def initialize_database():
     """Ensure database has necessary collections and fields"""
-    # Ensure users have status field
-    users = list(mongo.db.users.find({'status': {'$exists': False}}))
-    for user in users:
-        mongo.db.users.update_one(
-            {'_id': user['_id']},
-            {'$set': {'status': 'active'}}
+    try:
+        # Test connection first
+        mongo.db.command('ping')
+        app.logger.info("Connected to MongoDB successfully")
+        
+        # Ensure users have status field
+        users = list(mongo.db.users.find({'status': {'$exists': False}}))
+        for user in users:
+            mongo.db.users.update_one(
+                {'_id': user['_id']},
+                {'$set': {'status': 'active'}}
+            )
+        
+        # Create sessions collection if it doesn't exist
+        if 'sessions' not in mongo.db.list_collection_names():
+            mongo.db.create_collection('sessions')
+        
+        # Create TTL index on sessions to automatically expire old sessions
+        mongo.db.sessions.create_index(
+            [('last_active', 1)],
+            expireAfterSeconds=3600  # Sessions expire after 1 hour of inactivity
         )
-    
-    # Create sessions collection if it doesn't exist
-    if 'sessions' not in mongo.db.list_collection_names():
-        mongo.db.create_collection('sessions')
-    
-    # Create TTL index on sessions to automatically expire old sessions
-    mongo.db.sessions.create_index(
-        [('last_active', 1)],
-        expireAfterSeconds=3600  # Sessions expire after 1 hour of inactivity
-    )
-    
-    app.logger.info("Database initialization complete")
+        
+        app.logger.info("Database initialization complete")
+        
+    except Exception as e:
+        app.logger.error(f"Database initialization failed: {str(e)}")
+        app.logger.error("Please check your MongoDB connection settings")
 
 @app.route('/admin/conversation/<conv_id>/messages')
 @admin_required
@@ -593,4 +605,4 @@ def get_conversation_messages(conv_id):
 if __name__ == '__main__':
     initialize_database()
     server = Server(app.wsgi_app)
-    server.serve(debug=True, port=5003)
+    server.serve(debug=True, port=9009)
